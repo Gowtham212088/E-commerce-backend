@@ -1,16 +1,44 @@
-import express from "express";
+import express, { response } from "express";
 import { MongoClient, ObjectId } from "mongodb";
 import cors from "cors";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import jsonwebtocken from "jsonwebtoken";
+import { request } from "http";
 
 const app = express();
 
 //! Express MiddleWare (Body Parser)
 app.use(express.json());
 
+const auth_Admin = (request, response, next) => {
+ 
+  const token = request.header("x-auth-token");
+  
+ const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
+ if(verifyToken.role === "Admin"){
+  next();
+ }else{
+  response.status(401).send({ error: err.message });
+ }
+};
+
+//! Custom Middleware for Admin session
+
+const auth_vendor = (request, response, next) => {
+ 
+    const token = request.header("x-auth-token");
+    
+   const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
+   if(verifyToken.role === "vendor"){
+    next();
+   }else{
+    response.status(401).send({ error: err.message });
+   }
+  };
+
+  
 //! Configuring Enviroinment variables
 dotenv.config();
 
@@ -20,16 +48,6 @@ app.use(cors());
 const PORT = process.env.PORT || 5000;
 
 const MONGO_URL = process.env.MONGO_URL;
-
-async function createConnection() {
-  const client = new MongoClient(MONGO_URL);
-
-  await client.connect();
-
-  console.log("MongoDb is connected to server 👍🏽");
-
-  return client;
-}
 
 const client = await createConnection();
 
@@ -41,11 +59,11 @@ app.get("/", (request, response) => {
 
 // ?  SIGNUP DETAILS
 
-app.post("/create/users", async (request, response) => {
-  const { name, email, password, role, district, userDp, product } =
-    request.body;
+app.post("/create/users", auth_Admin,async (request, response) => {
+  const { name, email, password, role, district, userDp, product } = request.body;
 
-  // !  PASSWORD HASHING PROCESS
+  // !  PASSWORD HASHING PROCESS 
+  //? ADMIN ONLY
 
   const hashPassword = await createPassword(password);
 
@@ -80,9 +98,11 @@ app.post("/create/users", async (request, response) => {
   }
 });
 
-// ? LOGIN VERIFICATION
+ 
 
-app.post("/user/signIn", async (request, response) => {
+//!  LOGIN VERIFICATION
+//?  BOTH A SELLER AND ADMIN
+app.post("/user/signIn",async (request, response) => {
   const { email, password, _id } = request.body;
 
   const signIn = await client
@@ -100,8 +120,13 @@ app.post("/user/signIn", async (request, response) => {
     } else {
       const token = jsonwebtocken.sign(
         {
-          id: signIn._id,
+          _id: signIn._id,
+          name:signIn.name,
           email: signIn.email,
+          role:signIn.role,
+          district:signIn.district,
+          picture:signIn.userDp,
+          product:signIn.product
         },
         process.env.privateKey1
       );
@@ -109,6 +134,8 @@ app.post("/user/signIn", async (request, response) => {
     }
   }
 });
+
+//? FOR BOTH A SELLER & ADMIN 
 
 app.post("/conform/mailVerification", async (request, response) => {
    const data = request.body;
@@ -128,8 +155,6 @@ app.post("/conform/mailVerification", async (request, response) => {
     .findOne(data);
 
   const BSON_id = await checkAvailablity._id;
-
-  // console.log(BSON_id);
 
   if (!checkAvailablity) {
     response.status(404).send("User doesn't exist");
@@ -165,7 +190,10 @@ app.post("/conform/mailVerification", async (request, response) => {
     })
   }})
 
+//?  BOTH A SELLER & ADMIN
+
 app.post("/new-password/:_id/:token", async (request, response) => {
+
   const { _id } = request.params;
 
   const { token } = request.params;
@@ -207,6 +235,107 @@ app.post("/new-password/:_id/:token", async (request, response) => {
   }
 });
 
+//! For getting user profile data.
+//? For Seller.
+
+app.get("/get/userData", auth_vendor, async (request, response) => {
+  const getDatas = request.header("x-auth-token");
+
+  const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
+
+  const data = await client.db("ecommerce").collection("user").find().toArray();
+
+  response.send(crackData);
+
+});
+
+
+//! Admin's information only.
+//? Admin Only.
+
+app.get("/get/adminData", auth_Admin, async (request, response) => {
+  const getDatas = request.header("x-auth-token");
+
+  const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
+
+  const data = await client.db("ecommerce").collection("user").find().toArray();
+
+  response.send(crackData);
+
+});
+
+//! Users informations for Admin.
+//? Admin Only.
+
+app.get("/get/allUsersData", auth_Admin, async (request, response) => {
+
+  const data = await client.db("ecommerce").collection("user").find({role:"vendor"}).toArray()
+
+  response.send(data);
+
+});
+
+//? Seller Only
+//! Add products request _____________________________________(Notice: Pending work here)_____________________________
+
+app.put("/request/products",auth_vendor,(request,response)=>{
+
+  const headerToken = request.header("x-auth-token")
+
+  const products = request.body;
+
+  const responseData = jsonwebtocken.verify(headerToken,process.env.privateKey1);
+
+  const referanceObject = responseData._id;
+
+  const addProduct = client
+  .db("ecommerce")
+  .collection("user")
+  .updateOne({ _id: ObjectId(`${referanceObject}`) }, { $set: {product:[{},products]} });
+
+  if(!addProduct){
+ response.status(401).send("Bad request")
+  }else{
+    response.send(addProduct)
+  }
+})
+
+//? seller Only.
+
+app.put("/edit/user", auth_vendor, async (request, response) => {
+
+  const hearderToken = request.header("x-auth-token");
+
+  const { _id, name, email, contact, password, userDp, iat } = request.body;
+
+  const hashedPassword = await createPassword(password);
+
+  const updateData = {
+    name: name,
+    email: email,
+    contact: contact,
+    password: hashedPassword,
+    userDp: userDp,
+  };
+
+  const responseData = jsonwebtocken.verify(
+    hearderToken,
+    process.env.privateKey1
+  );
+
+  const updateReferance = responseData._id;
+
+  const changeUserData = client
+    .db("ecommerce")
+    .collection("user")
+    .updateOne({ _id: ObjectId(`${updateReferance}`) }, { $set: updateData });
+
+  response.send("User Updated Successfully");
+
+});
+
+
+
 app.post("/check", async (request, response) => {
   const email = request.body;
 
@@ -218,6 +347,16 @@ app.post("/check", async (request, response) => {
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
 
 //! DataBase Connection
+
+async function createConnection() {
+  const client = new MongoClient(MONGO_URL);
+
+  await client.connect();
+
+  console.log("MongoDb is connected to server 👍🏽");
+
+  return client;
+}
 
 // ?  Hashing and salting process before storing a password in DB
 
