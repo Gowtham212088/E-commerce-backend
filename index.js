@@ -287,25 +287,35 @@ app.get("/get/allUsersData", auth_Admin, async (request, response) => {
 //? Seller Only
 //! Add products request _____________________________________(Notice: Pending work here)_____________________________
 
-app.put("/request/products",auth_vendor,(request,response)=>{
+app.post("/request/products",auth_vendor,(request,response)=>{
 
   const headerToken = request.header("x-auth-token")
-
-  const products = request.body;
 
   const responseData = jsonwebtocken.verify(headerToken,process.env.privateKey1);
 
   const referanceObject = responseData._id;
 
+  const {name,productType,poster,summary,price,approval} = request.body;
+
+  const pushData = {
+    name:name,
+    productId:referanceObject,
+    productType:productType,
+    poster:poster,
+    summary:summary,
+    price:price,
+    approval:false
+  }
+
   const addProduct = client
   .db("ecommerce")
-  .collection("user")
-  .insertOne({ _id: ObjectId(`${referanceObject}`) }, { $set: {product:[products]} });
+  .collection("products")
+  .insertOne(pushData);
 
   if(!addProduct){
  response.status(401).send("Bad request")
   }else{
-    response.send(addProduct)
+    response.send("Request sent sucessfully")
   }
 })
 
