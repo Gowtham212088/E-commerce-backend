@@ -235,6 +235,7 @@ app.post("/new-password/:_id/:token", async (request, response) => {
   }
 });
 
+//// TESTED OK (SELLER LOGIN)
 //! For getting user profile data.
 //? For Seller.
 
@@ -243,27 +244,35 @@ app.get("/get/userData", auth_vendor, async (request, response) => {
 
   const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
 
-  const data = await client.db("ecommerce").collection("user").find().toArray();
+  const getId = crackData._id;
 
-  response.send(crackData);
+  console.log(getId);
+
+  const data = await client.db("ecommerce").collection("user").findOne({ _id: ObjectId(`${getId}`) })
+
+  response.send(data);
 
 });
 
-
+//// TESTED OK (WITH ADMIN LOGIN)
 //! Admin's information only.
-//? Admin Only.
+//? Admin Only.                
 
 app.get("/get/adminData", auth_Admin, async (request, response) => {
+
   const getDatas = request.header("x-auth-token");
 
   const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
 
-  const data = await client.db("ecommerce").collection("user").find().toArray();
+  const getId = crackData._id;
 
-  response.send(crackData);
+  const data = await client.db("ecommerce").collection("user").findOne({ _id: ObjectId(`${getId}`) })
+
+  response.send(data);
 
 });
 
+//// TESTED OK WITH (ADMIN LOGIN)
 //! Users informations for Admin.
 //? Admin Only.
 
@@ -291,7 +300,7 @@ app.put("/request/products",auth_vendor,(request,response)=>{
   const addProduct = client
   .db("ecommerce")
   .collection("user")
-  .updateOne({ _id: ObjectId(`${referanceObject}`) }, { $set: {product:[{},products]} });
+  .insertOne({ _id: ObjectId(`${referanceObject}`) }, { $set: {product:[products]} });
 
   if(!addProduct){
  response.status(401).send("Bad request")
