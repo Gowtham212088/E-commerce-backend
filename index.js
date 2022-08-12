@@ -63,7 +63,7 @@ app.post("/create/users", auth_Admin,async (request, response) => {
   const { name, email, password, role, district, userDp, product } = request.body;
 
   // !  PASSWORD HASHING PROCESS 
-  //? ADMIN ONLY
+ //? ADMIN ONLY
 
   const hashPassword = await createPassword(password);
 
@@ -74,7 +74,6 @@ app.post("/create/users", auth_Admin,async (request, response) => {
     role: role,
     district: district,
     userDp: userDp,
-    product: product,
   };
 
   const checkExisting = await client
@@ -98,11 +97,23 @@ app.post("/create/users", auth_Admin,async (request, response) => {
   }
 });
 
- 
+//! Get all approved products.
+app.get('/products/customers',async(request,response)=>{
+
+const getAllData = await client.db("ecommerce").collection("products").find().toArray()
+
+const filterApproved = getAllData.filter((element)=>{
+  return element.Approvel === true
+})
+
+response.send(filterApproved)
+
+})
 
 //!  LOGIN VERIFICATION
 //?  BOTH A SELLER AND ADMIN
 app.post("/user/signIn",async (request, response) => {
+
   const { email, password, _id } = request.body;
 
   const signIn = await client
@@ -143,6 +154,7 @@ app.post("/conform/mailVerification", async (request, response) => {
   const { name, email } = request.body;
 
   let token = await tokenGenerator(email);
+  
   const verifyIt = await jsonwebtocken.verify(token, process.env.privateKey3);
 
   // ? Here we check wheather the mentioned email-id in forgot-password page available in DB or Not.
@@ -256,7 +268,7 @@ app.get("/get/userData", auth_vendor, async (request, response) => {
 
 //// TESTED OK (WITH ADMIN LOGIN)
 //! Admin's information only.
-//? Admin Only.                
+//? Admin Only.
 
 app.get("/get/adminData", auth_Admin, async (request, response) => {
 
@@ -272,6 +284,26 @@ app.get("/get/adminData", auth_Admin, async (request, response) => {
 
 });
 
+//! Get all products for approval purposes.
+// ? Admin only
+
+app.get('/get/allProducts',auth_Admin,async(request,response)=>{
+
+  const getDatas = request.header("x-auth-token");
+
+  const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
+
+if(crackData.role === 'Admin'){
+
+  const data = await client.db("ecommerce").collection("products").find().toArray()
+
+}
+ response.send(crackData)
+})
+
+
+
+
 //// TESTED OK WITH (ADMIN LOGIN)
 //! Users informations for Admin.
 //? Admin Only.
@@ -284,8 +316,27 @@ app.get("/get/allUsersData", auth_Admin, async (request, response) => {
 
 });
 
-//? Seller Only
-//! Add products request _____________________________________(Notice: Pending work here)_____________________________
+//! My Products for Seller (GET)
+//? Seller can view his own product
+
+app.get('/seller/myProducts',auth_vendor,async(request,response)=>{
+  
+  const headerToken = request.header("x-auth-token")
+
+  const responseData = jsonwebtocken.verify(headerToken,process.env.privateKey1);
+
+  const getReferance = responseData._id;
+
+  const findProducts = await client.db("ecommerce").collection("products").find({userId:getReferance}).toArray()
+
+  console.log(findProducts);
+
+  response.send(findProducts)
+
+})
+
+//! Request for admitting product.
+//? Seller Only.
 
 app.post("/request/products",auth_vendor,(request,response)=>{
 
@@ -295,16 +346,16 @@ app.post("/request/products",auth_vendor,(request,response)=>{
 
   const referanceObject = responseData._id;
 
-  const {name,productType,poster,summary,price,approval} = request.body;
+  const {name,productType,poster,summary,price,Approvel} = request.body;
 
   const pushData = {
     name:name,
-    productId:referanceObject,
+    userId:referanceObject,
     productType:productType,
     poster:poster,
     summary:summary,
     price:price,
-    approval:false
+    Approvel:Approvel
   }
 
   const addProduct = client
@@ -319,13 +370,15 @@ app.post("/request/products",auth_vendor,(request,response)=>{
   }
 })
 
-//? seller Only.
+
+//! Admin update his own info.
+//?  seller Only.
 
 app.put("/edit/user", auth_vendor, async (request, response) => {
 
   const hearderToken = request.header("x-auth-token");
 
-  const { _id, name, email, contact, password, userDp, iat } = request.body;
+  const { _id, name, email, contact, password, userDp,district } = request.body;
 
   const hashedPassword = await createPassword(password);
 
@@ -335,6 +388,7 @@ app.put("/edit/user", auth_vendor, async (request, response) => {
     contact: contact,
     password: hashedPassword,
     userDp: userDp,
+    district:district
   };
 
   const responseData = jsonwebtocken.verify(
@@ -351,16 +405,6 @@ app.put("/edit/user", auth_vendor, async (request, response) => {
 
   response.send("User Updated Successfully");
 
-});
-
-
-
-app.post("/check", async (request, response) => {
-  const email = request.body;
-
-  const check = await client.db("ecommerce").collection("user").findOne(email);
-
-  response.send(check);
 });
 
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
