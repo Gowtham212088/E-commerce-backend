@@ -97,6 +97,21 @@ app.post("/create/users", auth_Admin,async (request, response) => {
   }
 });
 
+//! Get all unique products by Id (Product Info).
+app.get('/products/customers/:id',async(request,response)=>{
+
+  const {id} = request.params;
+
+const getAllData = await client.db("ecommerce").collection("products").find().toArray()
+
+const filterApproved = getAllData.filter((element)=>{
+  return element.Approvel === true
+})
+
+response.send(filterApproved[id])
+
+})
+
 //! Get all approved products.
 app.get('/products/customers',async(request,response)=>{
 
