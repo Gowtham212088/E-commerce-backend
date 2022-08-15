@@ -6,11 +6,20 @@ import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import jsonwebtocken from "jsonwebtoken";
 import { request } from "http";
+import { v4 as uuidv4 } from 'uuid';
+import Stripe from 'stripe';
+  
+//! Configuring Enviroinment variables
+dotenv.config();
+const KEY = process.env.stripe_key;
+const stripe = new Stripe(KEY, {
+  apiVersion: '2020-08-27',
+});
 
 const app = express();
 
 //! Express MiddleWare (Body Parser)
-app.use(express.json());
+app.use(express.json({limit:"50mb"}));
 
 const auth_Admin = (request, response, next) => {
  
@@ -38,9 +47,7 @@ const auth_vendor = (request, response, next) => {
    }
   };
 
-  
-//! Configuring Enviroinment variables
-dotenv.config();
+
 
 //! Cors (Third party middleware)
 app.use(cors());
@@ -60,7 +67,7 @@ app.get("/", (request, response) => {
 // ?  SIGNUP DETAILS
 
 app.post("/create/users", auth_Admin,async (request, response) => {
-  const { name, email, password, role, district, userDp, product } = request.body;
+  const {name,email,password,image,role,district } = request.body;
 
   // !  PASSWORD HASHING PROCESS 
  //? ADMIN ONLY
@@ -73,7 +80,7 @@ app.post("/create/users", auth_Admin,async (request, response) => {
     password: hashPassword,
     role: role,
     district: district,
-    userDp: userDp,
+    userDp: image,
   };
 
   const checkExisting = await client
@@ -125,6 +132,44 @@ response.send(filterApproved)
 
 })
 
+//! Get all approved products.
+app.get('/products/admin',auth_Admin,async(request,response)=>{
+
+  const getAllData = await client.db("ecommerce").collection("products").find().toArray()
+  
+  const filterApproved = getAllData.filter((element)=>{
+    return element.Approvel === false
+  })
+  
+  response.send(filterApproved)
+  
+  })
+
+//! Product approval from Admin (PUT)
+
+app.put("/delete/product/:id", auth_Admin, async (request, response) => {
+
+  const {id} = request.params;
+  
+    const hearderToken = request.header("x-auth-token");
+  
+    const findProducts = await client.db("ecommerce").collection("products").find().toArray()
+
+    //? Here we filtering non-approved products.
+   const filterApproval = findProducts.filter((element)=>{
+    return element.Approvel === false
+   })
+
+   const refProducts = filterApproval[id]._id;
+
+   const changeApprovalStatus  = await client.db("ecommerce").collection("products").updateOne({ _id: ObjectId(`${refProducts}`) },{$set:{Approvel:true}})
+
+  response.send(changeApprovalStatus)
+
+ });
+
+
+
 //!  LOGIN VERIFICATION
 //?  BOTH A SELLER AND ADMIN
 app.post("/user/signIn",async (request, response) => {
@@ -156,7 +201,7 @@ app.post("/user/signIn",async (request, response) => {
         },
         process.env.privateKey1
       );
-      response.send({ message: `Welcome ${signIn.name}`, token: token });
+      response.send({ message: `Welcome ${signIn.name}`, token: token,"status":"Successful" });
     }
   }
 });
@@ -267,6 +312,7 @@ app.post("/new-password/:_id/:token", async (request, response) => {
 //? For Seller.
 
 app.get("/get/userData", auth_vendor, async (request, response) => {
+  
   const getDatas = request.header("x-auth-token");
 
   const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
@@ -325,7 +371,7 @@ if(crackData.role === 'Admin'){
 
 app.get("/get/allUsersData", auth_Admin, async (request, response) => {
 
-  const data = await client.db("ecommerce").collection("user").find({role:"vendor"}).toArray()
+  const data = await client.db("ecommerce").collection("user").find({role:"Vendor"}).toArray()
 
   response.send(data);
 
@@ -421,6 +467,168 @@ app.put("/edit/user", auth_vendor, async (request, response) => {
   response.send("User Updated Successfully");
 
 });
+
+//! Get seller by ID
+app.get("/edit/users/:id", auth_Admin, async (request, response) => {
+
+const {id} = request.params;
+
+  const hearderToken = request.header("x-auth-token");
+
+  const findProducts = await client.db("ecommerce").collection("user").find().toArray()
+
+
+const filterProducts = findProducts.filter((element)=>element.role === 'Vendor')
+
+response.send(filterProducts[id])
+
+});
+
+//! User Information to Admin
+
+app.get("/user/getInfo",auth_Admin,async(request,response)=>{
+
+const getData = await client.db("ecommerce").collection("orders").find().toArray();
+
+const mapData = getData.map((elem)=>{
+  return elem.token.card
+}).map((elem)=>{
+
+  
+  return {
+      
+      name:elem.name,
+      country:elem.address_country,
+      pincode:elem.address_zip,
+      homeTown : elem.address_city,
+          
+  }
+})
+
+response.send(mapData)
+
+})
+
+//! GET purchase INFO for ADMIN.
+
+app.get("/user/purchaseInfo",auth_Admin,async(request,response)=>{
+
+  const getData = await client.db("ecommerce").collection("orders").find().toArray();
+  
+  const mapData = getData.map((elem)=>{
+    return elem.product
+}).flat()
+  
+  response.send(mapData)
+  
+  })
+
+
+//? DELETE users by ID
+app.delete("/delete/users/:id", auth_Admin, async (request, response) => {
+
+  const {id} = request.params;
+  
+    const hearderToken = request.header("x-auth-token");
+  
+    const findProducts = await client.db("ecommerce").collection("user").find().toArray()
+  
+  
+  const filterProducts = findProducts.filter((element)=>element.role === 'Vendor')
+  
+  const referanceData = filterProducts[id]._id;
+
+  const deleteData = await client.db("ecommerce").collection("user").deleteOne({_id:referanceData})
+
+  response.send(deleteData)
+
+ });
+
+//!  Stripe Payment 
+
+  app.post("/checkout", async (req, res) => {
+    console.log(req.body);
+    let error;
+    let status;
+    try {
+      const { product, token } = req.body;
+      const customer = await stripe.customers.create({
+        name: token.name,
+        email: token.email,
+        source: token.id,
+      });
+      const idempontencyKey = uuidv4();
+      const charge = await stripe.charges.create(
+        {
+          amount: product.price,
+          currency: "INR",
+          customer: customer.id,
+          receipt_email: token.email,
+          description: `Purchased the ${product.name}`,
+          shipping: {
+            name: token.card.name,
+            address: {
+              line1: token.card.address_line1,
+              line2: token.card.address_line2,
+              city: token.card.address_city,
+              country: token.card.address_country,
+              postal_code: token.card.address_zip,
+            },
+          },
+        },
+        {
+          idempontencyKey,
+        }
+      );
+      console.log("Charge:", { charge });
+      status = "success";
+    } catch (error) {
+      console.log("Error:", error);
+      status = "failure";
+    }
+    res.json({ error, status });
+  });
+
+
+  app.post('/create/orderInfo',async(request,response)=>{
+
+    const {token,product,total}= request.body;
+
+    const user = {
+      token:token,
+      product:product,
+      total:total
+    }
+  
+    const findProducts = await client.db("ecommerce").collection("orders").insertOne(user)
+    
+    response.send(findProducts)
+  
+  })
+
+  
+
+  app.get('/get/orderInfo',auth_Admin,async(request,response)=>{
+
+    // const {id}= request.body;
+  
+    const findProducts = await client.db("ecommerce").collection("orders").find().toArray()
+   
+    response.send(findProducts)
+  
+  })
+
+  app.delete('/delete/orderInfo',async(request,response)=>{
+
+    const userId= request.body;
+
+    const findProducts = await client.db("ecommerce").collection("orders").findOneAndDelete(userId)
+
+    response.send(findProducts)
+  
+  })
+
+
 
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
 
