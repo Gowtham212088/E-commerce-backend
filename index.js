@@ -6,48 +6,44 @@ import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import jsonwebtocken from "jsonwebtoken";
 import { request } from "http";
-import { v4 as uuidv4 } from 'uuid';
-import Stripe from 'stripe';
-  
+import { v4 as uuidv4 } from "uuid";
+import Stripe from "stripe";
+
 //! Configuring Enviroinment variables
 dotenv.config();
 const KEY = process.env.stripe_key;
 const stripe = new Stripe(KEY, {
-  apiVersion: '2020-08-27',
+  apiVersion: "2020-08-27",
 });
 
 const app = express();
 
 //! Express MiddleWare (Body Parser)
-app.use(express.json({limit:"50mb"}));
+app.use(express.json({ limit: "50mb" }));
 
 const auth_Admin = (request, response, next) => {
- 
   const token = request.header("x-auth-token");
-  
- const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
- if(verifyToken.role === "Admin"){
-  next();
- }else{
-  response.status(401).send({ error: err.message });
- }
+
+  const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
+  if (verifyToken.role === "Admin") {
+    next();
+  } else {
+    response.status(401).send({ error: err.message });
+  }
 };
 
 //! Custom Middleware for Admin session
 
 const auth_vendor = (request, response, next) => {
- 
-    const token = request.header("x-auth-token");
-    
-   const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
-   if(verifyToken.role === "vendor"){
+  const token = request.header("x-auth-token");
+
+  const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
+  if (verifyToken.role === "vendor") {
     next();
-   }else{
+  } else {
     response.status(401).send({ error: err.message });
-   }
-  };
-
-
+  }
+};
 
 //! Cors (Third party middleware)
 app.use(cors());
@@ -66,11 +62,11 @@ app.get("/", (request, response) => {
 
 // ?  SIGNUP DETAILS
 
-app.post("/create/users", auth_Admin,async (request, response) => {
-  const {name,email,password,image,role,district } = request.body;
+app.post("/create/users", auth_Admin, async (request, response) => {
+  const { name, email, password, image, role, district } = request.body;
 
-  // !  PASSWORD HASHING PROCESS 
- //? ADMIN ONLY
+  // !  PASSWORD HASHING PROCESS
+  //? ADMIN ONLY
 
   const hashPassword = await createPassword(password);
 
@@ -105,75 +101,86 @@ app.post("/create/users", auth_Admin,async (request, response) => {
 });
 
 //! Get all unique products by Id (Product Info).
-app.get('/products/customers/:id',async(request,response)=>{
+app.get("/products/customers/:id", async (request, response) => {
+  const { id } = request.params;
 
-  const {id} = request.params;
+  const getAllData = await client
+    .db("ecommerce")
+    .collection("products")
+    .find()
+    .toArray();
 
-const getAllData = await client.db("ecommerce").collection("products").find().toArray()
+  const filterApproved = getAllData.filter((element) => {
+    return element.Approvel === true;
+  });
 
-const filterApproved = getAllData.filter((element)=>{
-  return element.Approvel === true
-})
-
-response.send(filterApproved[id])
-
-})
-
-//! Get all approved products.
-app.get('/products/customers',async(request,response)=>{
-
-const getAllData = await client.db("ecommerce").collection("products").find().toArray()
-
-const filterApproved = getAllData.filter((element)=>{
-  return element.Approvel === true
-})
-
-response.send(filterApproved)
-
-})
+  response.send(filterApproved[id]);
+});
 
 //! Get all approved products.
-app.get('/products/admin',auth_Admin,async(request,response)=>{
+app.get("/products/customers", async (request, response) => {
+  const getAllData = await client
+    .db("ecommerce")
+    .collection("products")
+    .find()
+    .toArray();
 
-  const getAllData = await client.db("ecommerce").collection("products").find().toArray()
-  
-  const filterApproved = getAllData.filter((element)=>{
-    return element.Approvel === false
-  })
-  
-  response.send(filterApproved)
-  
-  })
+  const filterApproved = getAllData.filter((element) => {
+    return element.Approvel === true;
+  });
+
+  response.send(filterApproved);
+});
+
+//! Get all approved products.
+app.get("/products/admin", auth_Admin, async (request, response) => {
+  const getAllData = await client
+    .db("ecommerce")
+    .collection("products")
+    .find()
+    .toArray();
+
+  const filterApproved = getAllData.filter((element) => {
+    return element.Approvel === false;
+  });
+
+  response.send(filterApproved);
+});
 
 //! Product approval from Admin (PUT)
 
 app.put("/delete/product/:id", auth_Admin, async (request, response) => {
+  const { id } = request.params;
 
-  const {id} = request.params;
-  
-    const hearderToken = request.header("x-auth-token");
-  
-    const findProducts = await client.db("ecommerce").collection("products").find().toArray()
+  const hearderToken = request.header("x-auth-token");
 
-    //? Here we filtering non-approved products.
-   const filterApproval = findProducts.filter((element)=>{
-    return element.Approvel === false
-   })
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("products")
+    .find()
+    .toArray();
 
-   const refProducts = filterApproval[id]._id;
+  //? Here we filtering non-approved products.
+  const filterApproval = findProducts.filter((element) => {
+    return element.Approvel === false;
+  });
 
-   const changeApprovalStatus  = await client.db("ecommerce").collection("products").updateOne({ _id: ObjectId(`${refProducts}`) },{$set:{Approvel:true}})
+  const refProducts = filterApproval[id]._id;
 
-  response.send(changeApprovalStatus)
+  const changeApprovalStatus = await client
+    .db("ecommerce")
+    .collection("products")
+    .updateOne(
+      { _id: ObjectId(`${refProducts}`) },
+      { $set: { Approvel: true } }
+    );
 
- });
-
-
+  response.send(changeApprovalStatus);
+});
 
 //!  LOGIN VERIFICATION
 //?  BOTH A SELLER AND ADMIN
-app.post("/user/signIn",async (request, response) => {
-
+app.post("/user/signIn", async (request, response) => {
   const { email, password, _id } = request.body;
 
   const signIn = await client
@@ -192,29 +199,33 @@ app.post("/user/signIn",async (request, response) => {
       const token = jsonwebtocken.sign(
         {
           _id: signIn._id,
-          name:signIn.name,
+          name: signIn.name,
           email: signIn.email,
-          role:signIn.role,
-          district:signIn.district,
-          picture:signIn.userDp,
-          product:signIn.product
+          role: signIn.role,
+          district: signIn.district,
+          picture: signIn.userDp,
+          product: signIn.product,
         },
         process.env.privateKey1
       );
-      response.send({ message: `Welcome ${signIn.name}`, token: token,"status":"Successful" });
+      response.send({
+        message: `Welcome ${signIn.name}`,
+        token: token,
+        status: "Successful",
+      });
     }
   }
 });
 
-//? FOR BOTH A SELLER & ADMIN 
+//? FOR BOTH A SELLER & ADMIN
 
 app.post("/conform/mailVerification", async (request, response) => {
-   const data = request.body;
+  const data = request.body;
 
   const { name, email } = request.body;
 
   let token = await tokenGenerator(email);
-  
+
   const verifyIt = await jsonwebtocken.verify(token, process.env.privateKey3);
 
   // ? Here we check wheather the mentioned email-id in forgot-password page available in DB or Not.
@@ -222,7 +233,7 @@ app.post("/conform/mailVerification", async (request, response) => {
   // ? If email exists in DB we send mail to the existing mail-id.
 
   const checkAvailablity = await client
-    .db("signUp")
+    .db("ecommerce")
     .collection("user")
     .findOne(data);
 
@@ -248,24 +259,26 @@ app.post("/conform/mailVerification", async (request, response) => {
       subject: "Password verification",
       text: `${process.env.Base_URL}/${BSON_id}/${token}`,
     };
-    
-    sender.sendMail(composemail).then((response,request)=>{
-     response.send({
-        to: email,
-        subject: subject,
-        message:
-          "Please Click the link below to reset the passsword for security reasons the link will be expired in the next 10 minute",
+
+    sender
+      .sendMail(composemail)
+      .then((response, request) => {
+        response.send({
+          to: email,
+          subject: subject,
+          message:
+            "Please Click the link below to reset the passsword for security reasons the link will be expired in the next 10 minute",
+        });
+      })
+      .catch((error) => {
+        response.send(error);
       });
-      
- }).catch((error)=>{
-      response.send(error)
-    })
-  }})
+  }
+});
 
 //?  BOTH A SELLER & ADMIN
 
 app.post("/new-password/:_id/:token", async (request, response) => {
-
   const { _id } = request.params;
 
   const { token } = request.params;
@@ -273,7 +286,7 @@ app.post("/new-password/:_id/:token", async (request, response) => {
   const { password, newPassword } = request.body;
 
   const conformId = await client
-    .db("signUp")
+    .db("ecommerce")
     .collection("user")
     .findOne({ _id: ObjectId(`${_id}`) });
   // console.log(conformId.email);
@@ -292,7 +305,7 @@ app.post("/new-password/:_id/:token", async (request, response) => {
         const updatedHashPassword = await createPassword(password);
 
         const updatePassword = await client
-          .db("signUp")
+          .db("ecommerce")
           .collection("user")
           .updateOne(
             { _id: ObjectId(`${_id}`) },
@@ -312,7 +325,6 @@ app.post("/new-password/:_id/:token", async (request, response) => {
 //? For Seller.
 
 app.get("/get/userData", auth_vendor, async (request, response) => {
-  
   const getDatas = request.header("x-auth-token");
 
   const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
@@ -321,10 +333,12 @@ app.get("/get/userData", auth_vendor, async (request, response) => {
 
   console.log(getId);
 
-  const data = await client.db("ecommerce").collection("user").findOne({ _id: ObjectId(`${getId}`) })
+  const data = await client
+    .db("ecommerce")
+    .collection("user")
+    .findOne({ _id: ObjectId(`${getId}`) });
 
   response.send(data);
-
 });
 
 //// TESTED OK (WITH ADMIN LOGIN)
@@ -332,114 +346,102 @@ app.get("/get/userData", auth_vendor, async (request, response) => {
 //? Admin Only.
 
 app.get("/get/adminData", auth_Admin, async (request, response) => {
-
   const getDatas = request.header("x-auth-token");
 
   const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
 
   const getId = crackData._id;
 
-  const data = await client.db("ecommerce").collection("user").findOne({ _id: ObjectId(`${getId}`) })
+  const data = await client
+    .db("ecommerce")
+    .collection("user")
+    .findOne({ _id: ObjectId(`${getId}`) });
 
   response.send(data);
-
 });
 
 //! Get all products for approval purposes.
 // ? Admin only
 
-app.get('/get/allProducts',auth_Admin,async(request,response)=>{
-
+app.get("/get/allProducts", auth_Admin, async (request, response) => {
   const getDatas = request.header("x-auth-token");
 
   const crackData = jsonwebtocken.verify(getDatas, process.env.privateKey1);
 
-if(crackData.role === 'Admin'){
-
-  const data = await client.db("ecommerce").collection("products").find().toArray()
-
-}
- response.send(crackData)
-})
-
-
-
+  if (crackData.role === "Admin") {
+    const data = await client
+      .db("ecommerce")
+      .collection("products")
+      .find()
+      .toArray();
+  }
+  response.send(crackData);
+});
 
 //// TESTED OK WITH (ADMIN LOGIN)
 //! Users informations for Admin.
 //? Admin Only.
 
 app.get("/get/allUsersData", auth_Admin, async (request, response) => {
-
-  const data = await client.db("ecommerce").collection("user").find({role:"Vendor"}).toArray()
+  const data = await client
+    .db("ecommerce")
+    .collection("user")
+    .find({ role: "Vendor" })
+    .toArray();
 
   response.send(data);
-
 });
 
 //! My Products for Seller (GET)
 //? Seller can view his own product
 
-app.get('/seller/myProducts',auth_vendor,async(request,response)=>{
-  
-  const headerToken = request.header("x-auth-token")
+app.get("/seller/myProducts/userId/:userId", async (request, response) => {
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("products")
+    .find({ userId: request.params.userId })
+    .toArray();
 
-  const responseData = jsonwebtocken.verify(headerToken,process.env.privateKey1);
-
-  const getReferance = responseData._id;
-
-  const findProducts = await client.db("ecommerce").collection("products").find({userId:getReferance}).toArray()
-
-  console.log(findProducts);
-
-  response.send(findProducts)
-
-})
+  response.send(findProducts);
+});
 
 //! Request for admitting product.
 //? Seller Only.
 
-app.post("/request/products",auth_vendor,(request,response)=>{
-
-  const headerToken = request.header("x-auth-token")
-
-  const responseData = jsonwebtocken.verify(headerToken,process.env.privateKey1);
-
-  const referanceObject = responseData._id;
-
-  const {name,productType,poster,summary,price,Approvel} = request.body;
+app.post("/request/products", (request, response) => {
+  const { name, userId, productType, poster, summary, price, Approvel } =
+    request.body;
 
   const pushData = {
-    name:name,
-    userId:referanceObject,
-    productType:productType,
-    poster:poster,
-    summary:summary,
-    price:price,
-    Approvel:Approvel
-  }
+    name: name,
+    userId: userId,
+    productType: productType,
+    poster: poster,
+    summary: summary,
+    price: price,
+    Approvel: Approvel,
+  };
 
   const addProduct = client
-  .db("ecommerce")
-  .collection("products")
-  .insertOne(pushData);
+    .db("ecommerce")
+    .collection("products")
+    .insertOne(pushData);
 
-  if(!addProduct){
- response.status(401).send("Bad request")
-  }else{
-    response.send("Request sent sucessfully")
+  if (!addProduct) {
+    response.status(401).send("Bad request");
+  } else {
+    response.send("Request sent sucessfully");
   }
-})
-
+});
 
 //! Admin update his own info.
 //?  seller Only.
 
 app.put("/edit/user", auth_vendor, async (request, response) => {
-
   const hearderToken = request.header("x-auth-token");
 
-  const { _id, name, email, contact, password, userDp,district } = request.body;
+  const { _id, name, email, contact, password, userDp, district } =
+    request.body;
 
   const hashedPassword = await createPassword(password);
 
@@ -449,7 +451,7 @@ app.put("/edit/user", auth_vendor, async (request, response) => {
     contact: contact,
     password: hashedPassword,
     userDp: userDp,
-    district:district
+    district: district,
   };
 
   const responseData = jsonwebtocken.verify(
@@ -465,170 +467,180 @@ app.put("/edit/user", auth_vendor, async (request, response) => {
     .updateOne({ _id: ObjectId(`${updateReferance}`) }, { $set: updateData });
 
   response.send("User Updated Successfully");
-
 });
 
 //! Get seller by ID
 app.get("/edit/users/:id", auth_Admin, async (request, response) => {
-
-const {id} = request.params;
+  const { id } = request.params;
 
   const hearderToken = request.header("x-auth-token");
 
-  const findProducts = await client.db("ecommerce").collection("user").find().toArray()
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("user")
+    .find()
+    .toArray();
 
+  const filterProducts = findProducts.filter(
+    (element) => element.role === "Vendor"
+  );
 
-const filterProducts = findProducts.filter((element)=>element.role === 'Vendor')
-
-response.send(filterProducts[id])
-
+  response.send(filterProducts[id]);
 });
 
 //! User Information to Admin
 
-app.get("/user/getInfo",auth_Admin,async(request,response)=>{
+app.get("/user/getInfo", auth_Admin, async (request, response) => {
+  const getData = await client
+    .db("ecommerce")
+    .collection("orders")
+    .find()
+    .toArray();
 
-const getData = await client.db("ecommerce").collection("orders").find().toArray();
+  const mapData = getData
+    .map((elem) => {
+      return elem.token.card;
+    })
+    .map((elem) => {
+      return {
+        name: elem.name,
+        country: elem.address_country,
+        pincode: elem.address_zip,
+        homeTown: elem.address_city,
+      };
+    });
 
-const mapData = getData.map((elem)=>{
-  return elem.token.card
-}).map((elem)=>{
-
-  
-  return {
-      
-      name:elem.name,
-      country:elem.address_country,
-      pincode:elem.address_zip,
-      homeTown : elem.address_city,
-          
-  }
-})
-
-response.send(mapData)
-
-})
+  response.send(mapData);
+});
 
 //! GET purchase INFO for ADMIN.
 
-app.get("/user/purchaseInfo",auth_Admin,async(request,response)=>{
+app.get("/user/purchaseInfo", auth_Admin, async (request, response) => {
+  const getData = await client
+    .db("ecommerce")
+    .collection("orders")
+    .find()
+    .toArray();
 
-  const getData = await client.db("ecommerce").collection("orders").find().toArray();
-  
-  const mapData = getData.map((elem)=>{
-    return elem.product
-}).flat()
-  
-  response.send(mapData)
-  
-  })
+  const mapData = getData
+    .map((elem) => {
+      return elem.product;
+    })
+    .flat();
 
+  response.send(mapData);
+});
 
 //? DELETE users by ID
 app.delete("/delete/users/:id", auth_Admin, async (request, response) => {
+  const { id } = request.params;
 
-  const {id} = request.params;
-  
-    const hearderToken = request.header("x-auth-token");
-  
-    const findProducts = await client.db("ecommerce").collection("user").find().toArray()
-  
-  
-  const filterProducts = findProducts.filter((element)=>element.role === 'Vendor')
-  
+  const hearderToken = request.header("x-auth-token");
+
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("user")
+    .find()
+    .toArray();
+
+  const filterProducts = findProducts.filter(
+    (element) => element.role === "Vendor"
+  );
+
   const referanceData = filterProducts[id]._id;
 
-  const deleteData = await client.db("ecommerce").collection("user").deleteOne({_id:referanceData})
+  const deleteData = await client
+    .db("ecommerce")
+    .collection("user")
+    .deleteOne({ _id: referanceData });
 
-  response.send(deleteData)
+  response.send(deleteData);
+});
 
- });
+//!  Stripe Payment
 
-//!  Stripe Payment 
-
-  app.post("/checkout", async (req, res) => {
-    console.log(req.body);
-    let error;
-    let status;
-    try {
-      const { product, token } = req.body;
-      const customer = await stripe.customers.create({
-        name: token.name,
-        email: token.email,
-        source: token.id,
-      });
-      const idempontencyKey = uuidv4();
-      const charge = await stripe.charges.create(
-        {
-          amount: product.price,
-          currency: "INR",
-          customer: customer.id,
-          receipt_email: token.email,
-          description: `Purchased the ${product.name}`,
-          shipping: {
-            name: token.card.name,
-            address: {
-              line1: token.card.address_line1,
-              line2: token.card.address_line2,
-              city: token.card.address_city,
-              country: token.card.address_country,
-              postal_code: token.card.address_zip,
-            },
+app.post("/checkout", async (req, res) => {
+  console.log(req.body);
+  let error;
+  let status;
+  try {
+    const { product, token } = req.body;
+    const customer = await stripe.customers.create({
+      name: token.name,
+      email: token.email,
+      source: token.id,
+    });
+    const idempontencyKey = uuidv4();
+    const charge = await stripe.charges.create(
+      {
+        amount: product.price,
+        currency: "INR",
+        customer: customer.id,
+        receipt_email: token.email,
+        description: `Purchased the ${product.name}`,
+        shipping: {
+          name: token.card.name,
+          address: {
+            line1: token.card.address_line1,
+            line2: token.card.address_line2,
+            city: token.card.address_city,
+            country: token.card.address_country,
+            postal_code: token.card.address_zip,
           },
         },
-        {
-          idempontencyKey,
-        }
-      );
-      console.log("Charge:", { charge });
-      status = "success";
-    } catch (error) {
-      console.log("Error:", error);
-      status = "failure";
-    }
-    res.json({ error, status });
-  });
+      },
+      {
+        idempontencyKey,
+      }
+    );
+    console.log("Charge:", { charge });
+    status = "success";
+  } catch (error) {
+    console.log("Error:", error);
+    status = "failure";
+  }
+  res.json({ error, status });
+});
 
+app.post("/create/orderInfo", async (request, response) => {
+  const { token, product, total } = request.body;
 
-  app.post('/create/orderInfo',async(request,response)=>{
+  const user = {
+    token: token,
+    product: product,
+    total: total,
+  };
 
-    const {token,product,total}= request.body;
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("orders")
+    .insertOne(user);
 
-    const user = {
-      token:token,
-      product:product,
-      total:total
-    }
-  
-    const findProducts = await client.db("ecommerce").collection("orders").insertOne(user)
-    
-    response.send(findProducts)
-  
-  })
+  response.send(findProducts);
+});
 
-  
+app.get("/get/orderInfo", auth_Admin, async (request, response) => {
+  // const {id}= request.body;
 
-  app.get('/get/orderInfo',auth_Admin,async(request,response)=>{
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("orders")
+    .find()
+    .toArray();
 
-    // const {id}= request.body;
-  
-    const findProducts = await client.db("ecommerce").collection("orders").find().toArray()
-   
-    response.send(findProducts)
-  
-  })
+  response.send(findProducts);
+});
 
-  app.delete('/delete/orderInfo',async(request,response)=>{
+app.delete("/delete/orderInfo", async (request, response) => {
+  const userId = request.body;
 
-    const userId= request.body;
+  const findProducts = await client
+    .db("ecommerce")
+    .collection("orders")
+    .findOneAndDelete(userId);
 
-    const findProducts = await client.db("ecommerce").collection("orders").findOneAndDelete(userId)
-
-    response.send(findProducts)
-  
-  })
-
-
+  response.send(findProducts);
+});
 
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
 

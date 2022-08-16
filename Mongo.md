@@ -78,21 +78,22 @@ I) db(dbName).collection(collectionName).insertOne(variable)
 
 # Read the documents:(GET)
 
-- db.collection.find()  // Shows the complete datas
+- db.collection.find() // Shows the complete datas
 - db.collection.findOne() // Shows the single document in collection
 - db.collection.findOneAndReplace({find},replace{}) // It completly replaces the entire document not just the key value pair.
 - db.collection.findOneAndDelete({}) // It will find and delete the complete document
-OPERATORS USED : 
+  OPERATORS USED :
 
 # EQUALITY
-# LESSER THAN 
+
+# LESSER THAN
+
 # LESSER THAN EQUAL
+
 # GRATER THAN
+
 # LESSER THAN EQUAL
+
 # NOT EQUAL
 
 - SELECTING FIELDS (We need to specify the fields 1)
-
-       
- 
-
