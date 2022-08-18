@@ -497,16 +497,15 @@ app.get("/user/getInfo", auth_Admin, async (request, response) => {
     .find()
     .toArray();
 
-  const mapData = getData
-    .map((elem) => {
-      return elem.token.card;
-    })
-    .map((elem) => {
+  const mapData = getData.map((elem) => {
       return {
-        name: elem.name,
-        country: elem.address_country,
-        pincode: elem.address_zip,
-        homeTown: elem.address_city,
+        name:elem.token.card.name,
+        email:elem.token.email,
+        Address:elem.token.card.address_line1,
+        country:elem.token.card.address_country,
+        city:elem.token.card.address_city,
+        pincode:elem.token.card.address_zip,
+        money_spent:elem.total
       };
     });
 
