@@ -62,7 +62,7 @@ app.get("/", (request, response) => {
 
 // ?  SIGNUP DETAILS
 
-app.post("/create/users", auth_Admin, async (request, response) => {
+app.post("/create/users", async (request, response) => {
   const { name, email, password, image, role, district } = request.body;
 
   // !  PASSWORD HASHING PROCESS
@@ -498,16 +498,16 @@ app.get("/user/getInfo", auth_Admin, async (request, response) => {
     .toArray();
 
   const mapData = getData.map((elem) => {
-      return {
-        name:elem.token.card.name,
-        email:elem.token.email,
-        Address:elem.token.card.address_line1,
-        country:elem.token.card.address_country,
-        city:elem.token.card.address_city,
-        pincode:elem.token.card.address_zip,
-        money_spent:elem.total
-      };
-    });
+    return {
+      name: elem.token.card.name,
+      email: elem.token.email,
+      Address: elem.token.card.address_line1,
+      country: elem.token.card.address_country,
+      city: elem.token.card.address_city,
+      pincode: elem.token.card.address_zip,
+      money_spent: elem.total,
+    };
+  });
 
   response.send(mapData);
 });
