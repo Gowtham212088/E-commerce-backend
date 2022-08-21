@@ -62,8 +62,8 @@ app.get("/", (request, response) => {
 
 // ?  SIGNUP DETAILS
 
-app.post("/create/users", async (request, response) => {
-  const { name, email, password, image, role, district } = request.body;
+app.post("/create/users",async (request, response) => {
+  const { firstName,secondName, email, password, image, role, district } = request.body;
 
   // !  PASSWORD HASHING PROCESS
   //? ADMIN ONLY
@@ -71,7 +71,7 @@ app.post("/create/users", async (request, response) => {
   const hashPassword = await createPassword(password);
 
   const newUser = {
-    name: name,
+    name: firstName+" "+ secondName,
     email: email,
     password: hashPassword,
     role: role,
@@ -165,6 +165,9 @@ app.put("/delete/product/:id", auth_Admin, async (request, response) => {
     return element.Approvel === false;
   });
 
+  //? The term id => params data(Array or element index)
+  //? The term _id => referance key
+
   const refProducts = filterApproval[id]._id;
 
   const changeApprovalStatus = await client
@@ -177,6 +180,45 @@ app.put("/delete/product/:id", auth_Admin, async (request, response) => {
 
   response.send(changeApprovalStatus);
 });
+
+//! GET THE SELLER WITH PENNDING AUTHENTICATION
+//? ACCESS ONLY FOR ADMIN
+
+app.get('/get/pendingUser',auth_Admin,async(request,response)=>{
+
+const getPendingUser = await client.db("ecommerce").collection("user").find({role:""}).toArray()
+
+response.send(getPendingUser)
+
+})
+
+
+//! APPROVE USER
+//? ACCESS ONLY FOR ADMIN
+
+app.put('/approve/seller/:id', auth_Admin,async(request,response)=>{
+
+const {id} = request.params;
+
+const findUser = await client
+.db("ecommerce")
+.collection("user")
+.find()
+.toArray();
+
+//? Filtering roles with similarites
+
+const filterRole = findUser.filter((element)=>{
+  return element.role === ""
+})  
+
+const referanceUser = filterRole[id]._id;
+
+const editRole = await client.db("ecommerce").collection("user").updateOne({_id: ObjectId(`${referanceUser}`)},{$set:{role:"Vendor"}})
+
+response.send(editRole)
+
+})
 
 //!  LOGIN VERIFICATION
 //?  BOTH A SELLER AND ADMIN
