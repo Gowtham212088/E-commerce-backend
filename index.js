@@ -221,9 +221,9 @@ response.send(editRole)
 })
 
 //!  LOGIN VERIFICATION
-//?  BOTH A SELLER AND ADMIN
-app.post("/user/signIn", async (request, response) => {
-  const { email, password, _id } = request.body;
+//?  SELLER ONLY
+app.post("/seller/signIn", async (request, response) => {
+  const { email, password} = request.body;
 
   const signIn = await client
     .db("ecommerce")
@@ -238,23 +238,78 @@ app.post("/user/signIn", async (request, response) => {
     if (!isPasswordMatch) {
       response.status(401).send("Invalid credentials");
     } else {
-      const token = jsonwebtocken.sign(
-        {
-          _id: signIn._id,
-          name: signIn.name,
-          email: signIn.email,
-          role: signIn.role,
-          district: signIn.district,
-          picture: signIn.userDp,
-          product: signIn.product,
-        },
-        process.env.privateKey1
-      );
-      response.send({
-        message: `Welcome ${signIn.name}`,
-        token: token,
-        status: "Successful",
-      });
+      const conformVendor = signIn.role;
+       if(conformVendor === "" ){
+        response.status(401).send("The admin has not yet approved your account")
+      }else if( conformVendor === "Admin" ){
+        response.status(401).send("INVALID CREDENTIALS")
+      }else{
+        const token = jsonwebtocken.sign(
+          {
+            _id: signIn._id,
+            name: signIn.name,
+            email: signIn.email,
+            role: signIn.role,
+            district: signIn.district,
+            picture: signIn.userDp,
+            product: signIn.product,
+          },
+          process.env.privateKey1
+        );
+        response.send({
+          message: `Welcome ${signIn.name}`,
+          token: token,
+          status: "Successful",
+        });
+      }
+
+    }
+  }
+});
+
+//!  LOGIN VERIFICATION
+//?  ADMIN ONLY
+app.post("/admin/signIn", async (request, response) => {
+  const { email, password} = request.body;
+
+  const signIn = await client
+    .db("ecommerce")
+    .collection("user")
+    .findOne({ email: email });
+
+  if (!signIn) {
+    response.status(401).send("Invalid Credentials");
+  } else {
+    const storedPassword = signIn.password;
+    const isPasswordMatch = await bcrypt.compare(password, storedPassword);
+    if (!isPasswordMatch) {
+      response.status(401).send("Invalid credentials");
+    } else {
+      const conformVendor = signIn.role;
+       if(conformVendor === "" ){
+        response.status(401).send("Invalid Credentials")
+      }else if( conformVendor === "Vendor" ){
+        response.status(401).send("INVALID CREDENTIALS")
+      }else{
+        const token = jsonwebtocken.sign(
+          {
+            _id: signIn._id,
+            name: signIn.name,
+            email: signIn.email,
+            role: signIn.role,
+            district: signIn.district,
+            picture: signIn.userDp,
+            product: signIn.product,
+          },
+          process.env.privateKey1
+        );
+        response.send({
+          message: `Welcome ${signIn.name}`,
+          token: token,
+          status: "Successful",
+        });
+      }
+
     }
   }
 });
