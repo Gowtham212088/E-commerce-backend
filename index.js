@@ -38,7 +38,7 @@ const auth_vendor = (request, response, next) => {
   const token = request.header("x-auth-token");
 
   const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
-  if (verifyToken.role === "vendor") {
+  if (verifyToken.role === "Vendor") {
     next();
   } else {
     response.status(401).send({ error: err.message });
@@ -62,8 +62,9 @@ app.get("/", (request, response) => {
 
 // ?  SIGNUP DETAILS
 
-app.post("/create/users",async (request, response) => {
-  const { firstName,secondName, email, password, image, role, district } = request.body;
+app.post("/create/users", async (request, response) => {
+  const { firstName, secondName, email, password, image, role, district } =
+    request.body;
 
   // !  PASSWORD HASHING PROCESS
   //? ADMIN ONLY
@@ -71,7 +72,7 @@ app.post("/create/users",async (request, response) => {
   const hashPassword = await createPassword(password);
 
   const newUser = {
-    name: firstName+" "+ secondName,
+    name: firstName + " " + secondName,
     email: email,
     password: hashPassword,
     role: role,
@@ -184,46 +185,51 @@ app.put("/delete/product/:id", auth_Admin, async (request, response) => {
 //! GET THE SELLER WITH PENNDING AUTHENTICATION
 //? ACCESS ONLY FOR ADMIN
 
-app.get('/get/pendingUser',auth_Admin,async(request,response)=>{
+app.get("/get/pendingUser", auth_Admin, async (request, response) => {
+  const getPendingUser = await client
+    .db("ecommerce")
+    .collection("user")
+    .find({ role: "" })
+    .toArray();
 
-const getPendingUser = await client.db("ecommerce").collection("user").find({role:""}).toArray()
-
-response.send(getPendingUser)
-
-})
-
+  response.send(getPendingUser);
+});
 
 //! APPROVE USER
 //? ACCESS ONLY FOR ADMIN
 
-app.put('/approve/seller/:id', auth_Admin,async(request,response)=>{
+app.put("/approve/seller/:id", auth_Admin, async (request, response) => {
+  const { id } = request.params;
 
-const {id} = request.params;
+  const findUser = await client
+    .db("ecommerce")
+    .collection("user")
+    .find()
+    .toArray();
 
-const findUser = await client
-.db("ecommerce")
-.collection("user")
-.find()
-.toArray();
+  //? Filtering roles with similarites
 
-//? Filtering roles with similarites
+  const filterRole = findUser.filter((element) => {
+    return element.role === "";
+  });
 
-const filterRole = findUser.filter((element)=>{
-  return element.role === ""
-})  
+  const referanceUser = filterRole[id]._id;
 
-const referanceUser = filterRole[id]._id;
+  const editRole = await client
+    .db("ecommerce")
+    .collection("user")
+    .updateOne(
+      { _id: ObjectId(`${referanceUser}`) },
+      { $set: { role: "Vendor" } }
+    );
 
-const editRole = await client.db("ecommerce").collection("user").updateOne({_id: ObjectId(`${referanceUser}`)},{$set:{role:"Vendor"}})
-
-response.send(editRole)
-
-})
+  response.send(editRole);
+});
 
 //!  LOGIN VERIFICATION
 //?  SELLER ONLY
 app.post("/seller/signIn", async (request, response) => {
-  const { email, password} = request.body;
+  const { email, password } = request.body;
 
   const signIn = await client
     .db("ecommerce")
@@ -239,11 +245,13 @@ app.post("/seller/signIn", async (request, response) => {
       response.status(401).send("Invalid credentials");
     } else {
       const conformVendor = signIn.role;
-       if(conformVendor === "" ){
-        response.status(401).send("The admin has not yet approved your account")
-      }else if( conformVendor === "Admin" ){
-        response.status(401).send("INVALID CREDENTIALS")
-      }else{
+      if (conformVendor === "") {
+        response
+          .status(401)
+          .send("The admin has not yet approved your account");
+      } else if (conformVendor === "Admin") {
+        response.status(401).send("INVALID CREDENTIALS");
+      } else {
         const token = jsonwebtocken.sign(
           {
             _id: signIn._id,
@@ -257,12 +265,11 @@ app.post("/seller/signIn", async (request, response) => {
           process.env.privateKey1
         );
         response.send({
-          message: `Welcome ${signIn.name}`,
+          message: `Login Sucessful`,
           token: token,
           status: "Successful",
         });
       }
-
     }
   }
 });
@@ -270,7 +277,7 @@ app.post("/seller/signIn", async (request, response) => {
 //!  LOGIN VERIFICATION
 //?  ADMIN ONLY
 app.post("/admin/signIn", async (request, response) => {
-  const { email, password} = request.body;
+  const { email, password } = request.body;
 
   const signIn = await client
     .db("ecommerce")
@@ -286,11 +293,11 @@ app.post("/admin/signIn", async (request, response) => {
       response.status(401).send("Invalid credentials");
     } else {
       const conformVendor = signIn.role;
-       if(conformVendor === "" ){
-        response.status(401).send("Invalid Credentials")
-      }else if( conformVendor === "Vendor" ){
-        response.status(401).send("INVALID CREDENTIALS")
-      }else{
+      if (conformVendor === "") {
+        response.status(401).send("Invalid Credentials");
+      } else if (conformVendor === "Vendor") {
+        response.status(401).send("INVALID CREDENTIALS");
+      } else {
         const token = jsonwebtocken.sign(
           {
             _id: signIn._id,
@@ -304,12 +311,11 @@ app.post("/admin/signIn", async (request, response) => {
           process.env.privateKey1
         );
         response.send({
-          message: `Welcome ${signIn.name}`,
+          message: `Login Successful`,
           token: token,
           status: "Successful",
         });
       }
-
     }
   }
 });
@@ -492,11 +498,17 @@ app.get("/get/allUsersData", auth_Admin, async (request, response) => {
 //! My Products for Seller (GET)
 //? Seller can view his own product
 
-app.get("/seller/myProducts/userId/:userId", async (request, response) => {
+app.get("/seller/myProducts/userId", async (request, response) => {
+  const token = request.header("x-auth-token");
+
+  const verifyToken = jsonwebtocken.verify(token, process.env.privateKey1);
+
+  const referanceId = verifyToken._id;
+
   const findProducts = await client
     .db("ecommerce")
     .collection("products")
-    .find({ userId: request.params.userId })
+    .find({ userId: referanceId })
     .toArray();
 
   response.send(findProducts);
@@ -736,6 +748,22 @@ app.delete("/delete/orderInfo", async (request, response) => {
     .findOneAndDelete(userId);
 
   response.send(findProducts);
+});
+// ! ISSUE HERE
+app.get("/get/sellerInfo", auth_vendor, async (request, response) => {
+
+  const userData = [];
+
+  const token = request.header("x-auth-token");
+
+  const getTokenInfo = jsonwebtocken.verify(token, process.env.privateKey1);
+
+  const findUser =await client.db("ecommerce").collection("user").findOne({_id: ObjectId(`${getTokenInfo._id}`) });
+
+  // userData.push(findUser)
+
+  response.send(findUser);
+
 });
 
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
