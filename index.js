@@ -101,6 +101,47 @@ app.post("/create/users", async (request, response) => {
   }
 });
 
+// ?  SIGNUP DETAILS
+
+app.post("/create/coAdmin", auth_Admin,async (request, response) => {
+  const { firstName, secondName, email, password, image, role, district } =
+    request.body;
+
+  // !  PASSWORD HASHING PROCESS
+  //? ADMIN ONLY
+
+  const hashPassword = await createPassword(password);
+
+  const newUser = {
+    name: firstName + " " + secondName,
+    email: email,
+    password: hashPassword,
+    role: role,
+    district: district,
+    userDp: image,
+  };
+
+  const checkExisting = await client
+    .db("ecommerce")
+    .collection("user")
+    .findOne({ email: newUser.email });
+
+  if (!checkExisting) {
+    const signUp = await client
+      .db("ecommerce")
+      .collection("user")
+      .insertOne(newUser);
+
+    if (!signUp) {
+      response.status(404).send("Error");
+    } else {
+      response.send("User Created Sucessfully");
+    }
+  } else {
+    response.status(409).send("Account already exists");
+  }
+});
+
 //! Get all unique products by Id (Product Info).
 app.get("/products/customers/:id", async (request, response) => {
   const { id } = request.params;
