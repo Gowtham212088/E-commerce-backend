@@ -790,7 +790,9 @@ app.delete("/delete/orderInfo", async (request, response) => {
 
   response.send(findProducts);
 });
-// ! ISSUE HERE
+
+//? Vendor Profile data
+
 app.get("/get/sellerInfo", auth_vendor, async (request, response) => {
   const userData = [];
 
@@ -807,6 +809,26 @@ app.get("/get/sellerInfo", auth_vendor, async (request, response) => {
 
   response.send(findUser);
 });
+
+//? Admin Profile data
+
+app.get("/get/adminInfo", auth_Admin, async (request, response) => {
+  const userData = [];
+
+  const token = request.header("x-auth-token");
+
+  const getTokenInfo = jsonwebtocken.verify(token, process.env.privateKey1);
+
+  const findUser = await client
+    .db("ecommerce")
+    .collection("user")
+    .findOne({ _id: ObjectId(`${getTokenInfo._id}`) });
+
+  // userData.push(findUser)
+
+  response.send(findUser);
+});
+
 
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
 
