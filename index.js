@@ -829,7 +829,6 @@ app.get("/get/adminInfo", auth_Admin, async (request, response) => {
   response.send(findUser);
 });
 
-
 app.listen(PORT, () => console.log(`Server connected on port ${PORT} 😊😊`));
 
 //! DataBase Connection
@@ -844,14 +843,6 @@ async function createConnection() {
   return client;
 }
 
-// ?  Hashing and salting process before storing a password in DB
-
-async function createPassword(password) {
-  const salt = await bcrypt.genSalt(10);
-  const hash = await bcrypt.hash(password, salt);
-  return hash;
-}
-
 //? TOKEN GENERATOR
 
 const tokenGenerator = async (email) => {
@@ -860,3 +851,11 @@ const tokenGenerator = async (email) => {
   });
   return token;
 };
+
+// ?  Hashing and salting process before storing a password in DB
+
+async function createPassword(password) {
+  const salt = await bcrypt.genSalt(10);
+  const hash = await bcrypt.hash(password, salt);
+  return hash;
+}
